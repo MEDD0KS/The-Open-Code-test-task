@@ -1,0 +1,12 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.portWin": "COM57",
+  "idf.adapterTargetName": "esp32c6",
+  "idf.flashType": "UART",
+  "files.associations": {
+    "gptimer.h": "c",
+    "sdkconfig.h": "c",
+    "complex": "c",
+    "format": "c"
+  }
+}
