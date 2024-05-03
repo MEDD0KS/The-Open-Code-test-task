@@ -17,9 +17,6 @@
 
 static const int RX_BUF_SIZE = 1024;
 gptimer_handle_t gptimer = NULL;
-uint32_t counter = 0;
-uint16_t unlock_time = 0;
-uint16_t flash_time = 0;
 
 struct channel_task_args
 {
