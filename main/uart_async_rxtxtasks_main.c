@@ -16,20 +16,23 @@
 #include "driver/gptimer.h"
 
 static const int RX_BUF_SIZE = 1024;
+
+//структура таймера
 gptimer_handle_t gptimer = NULL;
 
+//структура для передачи данных в задачу
 struct channel_task_args
 {
     uint8_t channel;
     uint16_t _unlock_time;
     uint16_t _flash_time;
-};//args[5] = { {1, 1, 1}, {2, 1, 1}, {3, 1, 1}, {4, 1, 1}, {5, 1, 1}  };
+};
 
+//поля для таймера
 static uint32_t flash_time_timer_value[5] = {1 , 1 , 1, 1 , 1};
 static uint16_t unique_counter[5] = {0, 0, 0, 0 , 0};
 static bool pin_state_flag[5] = {false, false, false, false, false};
 
-bool timer_flag = false;
 //Флаги каналов
 bool channelLockFlag[5] = {false, false, false, false, false};
 //Каналов 5
@@ -38,9 +41,10 @@ bool channelLockFlag[5] = {false, false, false, false, false};
 #define TXD_PIN (GPIO_NUM_4)
 #define RXD_PIN (GPIO_NUM_5)
 
+//Пины управляемых каналов 
 #define CHANNEL_1_LED_PIN (GPIO_NUM_10)
 #define CHANNEL_1_LOCK_PIN (GPIO_NUM_11)
-#define CHANNEL_2_LED_PIN (GPIO_NUM_12)
+#define CHANNEL_2_LED_PIN (GPIO_NUM_12) 
 #define CHANNEL_2_LOCK_PIN (GPIO_NUM_13)
 #define CHANNEL_3_LED_PIN (GPIO_NUM_18)
 #define CHANNEL_3_LOCK_PIN (GPIO_NUM_19)
@@ -49,17 +53,18 @@ bool channelLockFlag[5] = {false, false, false, false, false};
 #define CHANNEL_5_LED_PIN (GPIO_NUM_22)
 #define CHANNEL_5_LOCK_PIN (GPIO_NUM_23)
 
+//Вспомогательные массивы с управляемыми пинами
 static gpio_num_t lock_pins_array[5] = {CHANNEL_1_LOCK_PIN, CHANNEL_2_LOCK_PIN, CHANNEL_3_LOCK_PIN, CHANNEL_4_LOCK_PIN, CHANNEL_5_LOCK_PIN};
 static gpio_num_t led_pins_array[5] = {CHANNEL_1_LED_PIN, CHANNEL_2_LED_PIN, CHANNEL_3_LED_PIN, CHANNEL_4_LED_PIN, CHANNEL_5_LED_PIN};
 
 // Прерывание таймера
 static bool IRAM_ATTR gptimer_alarm_callback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 { 
-    //vPortEnterCritical();    
-
-    if(channelLockFlag[0]){                
+    //Проверка флага каналов
+    if(channelLockFlag[0]){   
+        //Блинк по достижении заданного счета             
         if (unique_counter[0] == flash_time_timer_value[0]/2){
-            ESP_DRAM_LOGW("timer0", "Hardware timer channel 1 alarm! Count: %d", unique_counter[0]);
+            //ESP_DRAM_LOGW("timer0", "Hardware timer channel 1 alarm! Count: %d", unique_counter[0]);
             pin_state_flag[0] = !pin_state_flag[0];
             gpio_set_level(CHANNEL_1_LED_PIN, pin_state_flag[0]);            
             unique_counter[0] = 0;
@@ -68,7 +73,7 @@ static bool IRAM_ATTR gptimer_alarm_callback(gptimer_handle_t timer, const gptim
     }
     if(channelLockFlag[1]){
         if (unique_counter[1] == flash_time_timer_value[1]/2){
-            ESP_DRAM_LOGW("timer0", "Hardware timer channel 2 alarm! Count: %d", unique_counter[1]);
+            //ESP_DRAM_LOGW("timer0", "Hardware timer channel 2 alarm! Count: %d", unique_counter[1]);
             pin_state_flag[1] = !pin_state_flag[1];
             gpio_set_level(led_pins_array[1], pin_state_flag[1]);            
             unique_counter[1] = 0;
@@ -99,32 +104,25 @@ static bool IRAM_ATTR gptimer_alarm_callback(gptimer_handle_t timer, const gptim
         }
         unique_counter[4]++;   
     }
-    //vPortExitCritical(); 
-  //ESP_DRAM_LOGW("timer0", "Hardware timer alarm! Count: %d", counter);
   return false;
 }
 
 void init(void) {
 
-    //zero-initialize the config structure.
+    //Инициализация пинов управления
     gpio_config_t io_conf = {};
-    //disable interrupt
     io_conf.intr_type = GPIO_INTR_DISABLE;
-    //set as output mode
     io_conf.mode = GPIO_MODE_OUTPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO18/19
     io_conf.pin_bit_mask = (1ULL<<CHANNEL_1_LED_PIN)|(1ULL<<CHANNEL_1_LOCK_PIN)|
                             (1ULL<<CHANNEL_2_LED_PIN)|(1ULL<<CHANNEL_2_LOCK_PIN)|
                             (1ULL<<CHANNEL_3_LED_PIN)|(1ULL<<CHANNEL_3_LOCK_PIN)|
                             (1ULL<<CHANNEL_4_LED_PIN)|(1ULL<<CHANNEL_4_LOCK_PIN)|
                             (1ULL<<CHANNEL_5_LED_PIN)|(1ULL<<CHANNEL_5_LOCK_PIN);
-    //disable pull-down mode
     io_conf.pull_down_en = 0;
-    //disable pull-up mode
     io_conf.pull_up_en = 0;
-    //configure GPIO with the given settings
     gpio_config(&io_conf);
 
+    //Инициализация UART    
     const uart_config_t uart_config = {
         .baud_rate = 115200,
         .data_bits = UART_DATA_8_BITS,
@@ -133,11 +131,11 @@ void init(void) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    // We won't use a buffer for sending data.
     uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
     uart_param_config(UART_NUM_1, &uart_config);
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);    
 
+    //Инициализация таймера
     const gptimer_config_t timer_config ={
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
@@ -254,8 +252,8 @@ static void rx_task(void *arg)
                     }
                     else if(data[4] == 2){
                         
-                        unlock_time = data[5] + ((int16_t)data[6]<<8);
-                        flash_time = data[7] + ((int16_t)data[8]<<8);
+                        uint16_t unlock_time = data[5] + ((int16_t)data[6]<<8);
+                        uint16_t flash_time = data[7] + ((int16_t)data[8]<<8);
                         ESP_LOGI(RX_TASK_TAG, "Unlock_time: %d", unlock_time);
                         ESP_LOGI(RX_TASK_TAG, "flash_time: %d", flash_time);
 
